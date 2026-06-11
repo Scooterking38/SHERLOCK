@@ -1,0 +1,59 @@
+name: Run Sherlock Scan
+
+on:
+  workflow_dispatch:
+    inputs:
+      username:
+        description: 'The username to investigate'
+        required: true
+        type: string
+
+jobs:
+  investigate:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Check out the repository
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Step 2: Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      # Step 3: Cache pipx directory
+      # This caches the internal pipx registry and installed packages
+      - name: Cache pipx
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.local/share/pipx
+            ~/.local/bin
+          key: ${{ runner.os }}-pipx-sherlock-${{ hashFiles('.github/workflows/sherlock.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-pipx-sherlock-
+
+      # Step 4: Install pipx (pre-installed on Ubuntu runners, but good practice to ensure it's updated)
+      - name: Ensure pipx is available
+        run: |
+          python -m pip install --user pipx
+          python -m pipx ensurepath
+
+      # Step 5: Install Sherlock via pipx
+      # The '--force' flag ensures it updates if needed, but uses cached files if the directory exists
+      - name: Install Sherlock
+        run: pipx install sherlock-project --force
+
+      # Step 6: Run Sherlock using the input variable
+      - name: Run Sherlock Investigation
+        run: |
+          sherlock ${{ github.event.inputs.username }} --o results.txt
+
+      # Step 7: Upload the results as an artifact
+      - name: Upload Results
+        uses: actions/upload-artifact@v4
+        with:
+          name: sherlock-results
+          path: results.txt
